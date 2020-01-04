@@ -1,15 +1,19 @@
 const csvtojson = require('csvtojson')
+const tf = require('@tensorflow/tfjs')
+const plotlib = require('nodeplotlib')
 
 function load_THB_data() {
     return csvtojson().fromFile('THB.csv')
 }
 
 function preprocess(data) {
+    let xs = []
     let ys = []
     Object.keys(data).map((i) => {
+        xs.push(data[i]['date'])
         ys.push(Number.parseFloat(data[i]['value']))
     })
-    return ys
+    return [xs,ys]
 }
 
 function computeAverage(data) {
@@ -57,14 +61,69 @@ function computeMode(data) {
 }
 
 function summary(data) {
+    let temp = [...data]
     console.log('THB value history')
-    console.log('average :',computeAverage(data))
-    console.log('median :',computeMedian(data))
-    console.log('mode :',computeMode(data))
+    console.log('average :',computeAverage(temp))
+    console.log('median :',computeMedian(temp))
+    console.log('mode :',computeMode(temp))
+}
+
+function create_model(){
+    const model = tf.sequential()
+
+    model.add(tf.layers.dense({
+        units: 1,
+        inputShape: 1,
+        activation: "linear"
+    }))
+
+    model.add(tf.layers.dense({
+        units:1,
+        activation:"linear"
+    }))
+    
+    model.summary()
+
+    LEARNING_RATE = 0.01
+
+    model.compile({
+        loss: tf.losses.absoluteDifference,
+        optimizer: tf.train.sgd(LEARNING_RATE)
+    })
+
+    return model
+}
+
+function train(model, xs, ys) {
+    return model.fit(xs, ys, {
+        batchSize: 32,
+        validationSplit: 0.2,
+        epochs: 100,
+        shuffle: true,
+        callbacks: {
+            onEpochEnd: async (epoch, logs) => {
+                console.log(`ep:${epoch}\tlogs:${JSON.stringify(logs)}`)
+            }
+        },
+        verbose: 1
+    })
+}
+
+function sample_evaluation(model, xs, ys) {
+    y_pred = model.predict(xs.slice(0, 10))
+    console.log('y_pred')
+    console.log(y_pred.arraySync())
+    console.log()
+    console.log('y_true')
+    console.log(ys.slice(0, 10).arraySync())
 }
 
 (async () => {
-    let data = await load_THB_data()
-    let value = preprocess(data)
-    summary(value)
+    let raw_data = await load_THB_data()
+    let value = preprocess(raw_data)
+    const data = [{x:value[0].reverse(),y:value[1],type:'scatter'}]
+    plotlib.plot(data)
+
+    summary(value[1])
+    
 })()

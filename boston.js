@@ -102,4 +102,5 @@ function sample_evaluation(model, xs, ys) {
     await train(model, xs, ys)
 
     sample_evaluation(model, xs, ys)
+
 })()
